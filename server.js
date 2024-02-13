@@ -1,111 +1,104 @@
 const express = require('express');
-const { Builder, By, until } = require('selenium-webdriver');
-const firefox = require('selenium-webdriver/firefox');
+const puppeteer = require('puppeteer');
 const cors = require('cors');
+const chromium = require('chromium');
 
 const app = express();
 app.use(cors());
 const port = 3000; // Você pode escolher outra porta se necessário
 const idJogador = 1784;
 const idTime = 154;
+let browser;
+
+async function startBrowser() {
+    browser = await puppeteer.launch( {executablePath:chromium.path, headless: false, args: ['--no-sandbox', '--disable-setuid-sandbox']});
+}
 
 async function login() {
-    let options = new firefox.Options();
-    let driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
-    await driver.get('http://www.footmundo.com');
+    const page = await browser.newPage();
+    await page.goto('http://www.footmundo.com', { waitUntil: 'networkidle2' });
 
-    await driver.wait(until.elementLocated(By.id('usernameInput')), 10000);
-    await driver.wait(until.elementLocated(By.id('passwordInput')), 10000);
 
-    await driver.findElement(By.id('usernameInput')).sendKeys('etapa2proplay@gmail.com');
-    await driver.findElement(By.id('passwordInput')).sendKeys('jovemfla1');
+    // Verifica se já está logado procurando por um elemento que só aparece para usuários logados
+    const isAlreadyLoggedIn = await page.$('#info_perfil') !== null;
+    if (isAlreadyLoggedIn) {
+        console.log('Usuário já está logado.');
+        return page; // Usuário já está logado, então retorna a página
+    }
 
-    await driver.findElement(By.css('input[type="submit"][name="logar"]')).click();
-    await driver.wait(until.urlContains(`https://www.footmundo.com/jogador/${idJogador}`), 10000);
+    // Se não estiver logado, tenta fazer o login
+    await page.waitForSelector('#usernameInput', { timeout: 2000 });
+    await page.waitForSelector('#passwordInput', { timeout: 2000 });
+    await page.type('#usernameInput', 'etapa2proplay@gmail.com');
+    await page.type('#passwordInput', 'jovemfla1');
+    await page.click('input[type="submit"][name="logar"]');
+    console.log('Usuário logado com sucesso.');
 
-    return driver;
+    return page; // Retorna a página para ser usada após o login
 }
 
-async function mudarFoco(driver, select, value, botao) {
-    await driver.get(`https://www.footmundo.com/foco/jogador/${idJogador}`);
-
-    // Esperar até que o elemento select esteja visível
-    await driver.wait(until.elementLocated(By.css(`select[name="${select}"]`)), 10000);
-    const selectElement = await driver.findElement(By.css(`select[name="${select}"]`));
-
-    // Selecionar a opção desejada clicando no elemento <option> correspondente
-    const optionElement = await selectElement.findElement(By.css(`option[value="${value}"]`));
-    await optionElement.click();
-
-    // Aguardar e clicar no botão de submit
-    await driver.wait(until.elementLocated(By.css(`input[type="submit"][name="${botao}"]`)), 10000);
-    await driver.findElement(By.css(`input[type="submit"][name="${botao}"]`)).click();
 
 
-    await driver.wait(until.urlContains(`https://www.footmundo.com/foco/jogador/${idJogador}`), 10000);
-    driver.quit();
+
+
+async function mudarFoco(page, select, value, botao) {
+
+    // Navegar até a página do jogador
+    await page.goto(`https://www.footmundo.com/foco/jogador/${idJogador}`);
+
+    // Aguardar o carregamento do select de lazer
+    await page.waitForSelector(`select[name="${select}"]`);
+
+    // Alterar a opção de lazer para "Descansar"
+    await page.select(`select[name="${select}"]`, `${value}`); // '51' é o value da opção "Descansar"
+    await page.waitForSelector(`input[type="submit"][name="${botao}"]`);
+    await page.click(`input[type="submit"][name="${botao}"]`);
+    await page.waitForNavigation();
+    await page.close(); // Feche o browser aqui
+
 }
 
-async function verBoost(driver){
-    await driver.get(`https://www.footmundo.com/outras-opcoes/time/${idTime}`);
+async function verBoost(page) {
+    await page.goto(`https://www.footmundo.com/outras-opcoes/time/${idTime}`);
 
-    // Encontra o elemento pelo ID e obtém o valor do atributo 'title'
-    let element = await driver.findElement(By.id('popularidade'));
-    let titleValue = await element.getAttribute('title');
+    const titleValue = await page.$eval('#popularidade', el => el.getAttribute('title'));
 
-    driver.quit();
-
+    await page.close();
     return titleValue;
 }
 
-async function usarBoost(driver){
-    await driver.get(`https://www.footmundo.com/outras-opcoes/time/${idTime}`);
-}
+async function usarXp(page, tipo) {
+    await page.goto(`https://www.footmundo.com/usar-xp/jogador/${idJogador}`);
 
-async function usarXp(driver, tipo) {
-    // Navega para a página de usar XP
-    await driver.get(`https://www.footmundo.com/usar-xp/jogador/${idJogador}`);
-
-    // Define o ID do formulário baseado no tipo
     let formId;
     if (tipo === 'saude') {
-        formId = 'UpSaude';
+        formId = '#UpSaude';
     } else if (tipo === 'humor') {
-        formId = 'UpHumor';
+        formId = '#UpHumor';
     } else {
         throw new Error('Tipo inválido. Deve ser "saude" ou "humor".');
     }
 
-    // Espera até que o formulário esteja visível
-    await driver.wait(until.elementLocated(By.id(formId)), 10000);
+    await page.waitForSelector(formId);
 
-    // Remove o elemento obstrutivo se ele estiver presente
-    await driver.executeScript("var element = document.querySelector('.footer-info'); if (element) element.remove();");
+    // Preparar para aceitar o diálogo confirm
+    page.on('dialog', async dialog => {
+        await dialog.accept();
+    });
 
-    // Encontra o botão dentro do formulário e clica nele
-    const formElement = await driver.findElement(By.id(formId));
-    await driver.wait(until.elementLocated(By.css('input[type="button"]')), 10000);
-    const submitButton = await formElement.findElement(By.css('input[type="button"]'));
+    await page.click(`${formId} input[type="button"]`);
 
-    // Agora que o elemento obstrutivo foi removido, tenta clicar no botão
-    await submitButton.click();
+    // Aguarde a navegação ou uma ação específica aqui, se necessário
+    await page.waitForNavigation({ waitUntil: 'networkidle0' });
 
+    await page.close();
 
-    // Aguarda até que o alerta esteja presente e então aceita-o
-    const alert = await driver.wait(until.alertIsPresent(), 10000);
-    await alert.accept(); // Clica em "OK" no alerta de confirmação
-
-    // Aguarda pela navegação ou alguma outra mudança na página para confirmar que a ação foi bem-sucedida
-    await driver.wait(until.urlContains(`https://www.footmundo.com/usar-xp/jogador/${idJogador}`), 10000);
-
-    // Fecha o navegador após a ação ser concluída
-    await driver.quit();
 }
 
 function createRoute(path, message, action, ...actionArgs) {
     app.get(path, async (req, res) => {
-        let driver = await login();
-        await action(driver, ...actionArgs);
+        const page = await login();
+        await action(page, ...actionArgs);
         res.json({ message });
     });
 }
@@ -114,18 +107,19 @@ createRoute('/mudar-lazer-descansar', 'Opção de lazer alterada para "Descansar
 createRoute('/mudar-lazer-passear', 'Opção de lazer alterada para "Passear".', mudarFoco, 'foco_lazer', '50', 'lazer');
 createRoute('/mudar-foco-treinar', 'Opção de foco alterada para "Treinar".', mudarFoco, 'foco_carreira', '2', 'mudar_foco');
 createRoute('/mudar-foco-imprensa', 'Opção de foco alterada para "Imprensa".', mudarFoco, 'foco_carreira', '3', 'mudar_foco');
-createRoute('/usar-xp-saude', 'XP usado em Saúde com sucesso.', usarXp, 'saude');
-createRoute('/usar-xp-humor', 'XP usado em Humor com sucesso.', usarXp, 'humor');
+createRoute('/usar-xp-humor', 'XP de humor utilizada.', usarXp, 'humor');
+createRoute('/usar-xp-saude', 'XP de saúde utilizada.', usarXp, 'saude');
+
+
 
 app.get('/ver-boost', async (req, res) => {
-    let driver = await login();
-    let titleValue = await verBoost(driver);
-    res.json({ message: `O Boost atual do vicente é : ${titleValue}` });
+    const page = await login();
+    let titleValue = await verBoost(page);
+    res.json({ message: `O Boost atual do vicente é: ${titleValue}` });
 });
 
 
-
-
-app.listen(port, () => {
+app.listen(port, async () => {
+    await startBrowser();
     console.log(`Servidor rodando em http://localhost:${port}`);
 });

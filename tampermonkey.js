@@ -14,31 +14,39 @@
 
 (function () {
     'use strict';
-    var server = 'http://localhost:3000';
+    var server = 'https://us-central1-calcfootmundo.cloudfunctions.net';
     var cssInject = `
+    .h6modal{
+    font-size:14px;
+    }
         .buttons-vicente {
-            background-color: #4CAF50; /* Green */
+            background-color: #4ba7d0;
             border: none;
             color: white;
+            width: 78px;
             padding: 5px 10px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 10px;
+            font-size: 12px;
             margin: 4px 2px;
             transition-duration: 0.4s;
             cursor: pointer;
             border-radius: 8px;
+            height: 43px;
         }
         .buttons-vicente:hover {
             background-color: white;
             color: black;
-            border: 1px solid #4CAF50;
+            border: 1px solid #4ba7d0;
         }
         .buttons-vicente:active {
-            background-color: #4CAF50;
+            background-color: #4ba7d0;
             color: white;
-            border: 1px solid #4CAF50;
+            border: 1px solid #4ba7d0;
+        }
+        div:where(.swal2-container) button:where(.swal2-styled).swal2-confirm{
+            background-color: #cc7ffe;
         }
 
 
@@ -52,15 +60,7 @@
     }
     document.getElementsByTagName('head')[0].appendChild(style);
 
-    function createButtonAndAddListener(id, action) {
-        const button = document.createElement('button');
-        button.id = id;
-        button.className = 'buttons-vicente';
-        button.style.cursor = 'pointer';
-        button.textContent = action;
-        button.addEventListener('click', () => mudarFocoOuLazer(id));
-        return button;
-    }
+
 
     function mudarFocoOuLazer(endpoint) {
         console.log("clicado");
@@ -122,23 +122,27 @@
                     </div>
                     <div style="flex: 1;">
                         <h6>Boost</h6>
-                        <button id="ver-boost" class="buttons-vicente" style="cursor:pointer;">Ver % do Boost</button>
-                        <button id="usar-boost" class="buttons-vicente" style="cursor:pointer;">Usar Boost</button>
+                        <button id="/ver-boost" class="buttons-vicente" style="cursor:pointer;">Ver % do Boost</button>
+                        <button id="/usar-boost" class="buttons-vicente" style="cursor:pointer;">Usar Boost</button>
                     </div>
                     <div style="flex: 1;">
                         <h6>Usar XP</h6>
-                        <button id="usar-xp-humor" class="buttons-vicente" style="cursor:pointer;">Humor</button>
-                        <button id="usar-xp-saude" class="buttons-vicente" style="cursor:pointer;">Saúde</button>
+                        <button id="/usar-xp-humor" class="buttons-vicente" style="cursor:pointer;">Humor</button>
+                        <button id="/usar-xp-saude" class="buttons-vicente" style="cursor:pointer;">Saúde</button>
                     </div>
                 </div>
             `,
             focusConfirm: false,
             didRender: () => {
-                const actions = ['mudar-lazer-passear', 'mudar-lazer-descansar', 'mudar-foco-treinar', 'mudar-foco-imprensa', 'usar-xp-humor', 'usar-xp-saude', 'ver-boost'];
-                actions.forEach(action => {
-                    const button = createButtonAndAddListener(action, action);
-                    document.body.appendChild(button);
-                });
+                document.getElementById('mudar-lazer-passear').addEventListener('click', () => mudarFocoOuLazer('mudarLazerPassear'));
+                document.getElementById('mudar-lazer-descansar').addEventListener('click', () => mudarFocoOuLazer('mudarLazerDescansar'));
+                document.getElementById('mudar-foco-treinar').addEventListener('click', () => mudarFocoOuLazer('mudarFocoTreinar'));
+                document.getElementById('mudar-foco-imprensa').addEventListener('click', () => mudarFocoOuLazer('mudarFocoImprensa'));
+                document.getElementById('/usar-xp-humor').addEventListener('click', () => mudarFocoOuLazer('usarXpHumor'));
+                document.getElementById('/usar-xp-saude').addEventListener('click', () => mudarFocoOuLazer('usarXpSaude'));
+                document.getElementById('/ver-boost').addEventListener('click', () => mudarFocoOuLazer('verBoost'));
+                document.getElementById('/usar-boost').addEventListener('click', () => alert('Não implementado'));
+
             }
         });
     }
